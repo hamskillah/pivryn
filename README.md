@@ -77,7 +77,7 @@ ship a standalone Pivryn APK, packages must be compiled from source for
 with that prefix.
 
 A dedicated [custom-prefix build script](bootstrap/rebuild-with-prefix.sh)
-and a manually-triggered
+and an automatically-triggered (on changes to relevant files in `main`)
 [custom-prefix GitHub Actions workflow](.github/workflows/custom-prefix-bootstrap.yml)
 are included.
 

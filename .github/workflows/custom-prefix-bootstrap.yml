@@ -1,7 +1,13 @@
 name: custom-prefix-bootstrap
 # This expensive job compiles Termux packages from source for com.pivryn.
-# It never publishes a release or signs an APK. Run explicitly for validation.
+# It never publishes a release or signs an APK. Automatically runs after the release-engineering changes land on main.
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'bootstrap/**'
+      - 'android/app/build.gradle.kts'
+      - '.github/workflows/custom-prefix-bootstrap.yml'
   workflow_dispatch:
 
 permissions:
