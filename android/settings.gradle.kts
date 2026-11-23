@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "PocketPi"
+rootProject.name = "Pivryn"
 include(":app")

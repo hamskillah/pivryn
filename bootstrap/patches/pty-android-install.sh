@@ -37,6 +37,21 @@ test -f "$STAGING/package/prebuilds/android-arm64/pty.node"
 test -f "$STAGING/package/LICENSE"
 mv "$NODE_PTY_PKG" "$BACKUP"
 mv "$STAGING/package" "$NODE_PTY_PKG"
+# This prebuilt AArch64 addon references the official Termux RUNPATH.
+# com.pivryn and com.termux have equal-length package IDs, so for our custom
+# namespace a byte-for-byte path rewrite is safe without changing ELF layout.
+if [ "$PREFIX" = "/data/data/com.pivryn/files/usr" ]; then
+  python3 - "$NODE_PTY_PKG/prebuilds/android-arm64/pty.node" <<'PY'
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+blob = path.read_bytes()
+old, new = b"com.termux", b"com.pivryn"
+if len(old) != len(new) or old not in blob:
+    raise SystemExit("Expected upstream native RUNPATH not found")
+path.write_bytes(blob.replace(old, new))
+PY
+fi
 chmod 700 "$NODE_PTY_PKG/prebuilds/android-arm64/pty.node"
 
 # Do a genuine PTY spawn as well as native require(): a bare import can succeed
