@@ -67,13 +67,13 @@ The project contains [`bootstrap/rebuild-with-prefix.sh`](bootstrap/rebuild-with
 
 ### Build verification
 
-On **2026-11-23**, the development APK was built successfully with Gradle 8.10, Java 17, Android SDK 34 and the Termux aarch64 bootstrap. Android Lint returned **0 errors**. Six repository source tests and both TypeScript extension builds passed. No physical device or emulator was available. See [build verification](docs/BUILD_VERIFICATION.md).
+On **2026-11-23**, the development APK was built successfully with Gradle 8.10, Java 17, Android SDK 34 and the Termux aarch64 bootstrap. Android Lint returned **0 errors**. Fifteen repository source tests and both TypeScript extension builds passed. No physical device or emulator was available. See [build verification](docs/BUILD_VERIFICATION.md).
 
 ### Custom-prefix build (experimental, Android ARM64 only)
 
 Termux binary packages encode their Android application ID into native paths. To
 ship a standalone Pivryn APK, packages must be compiled from source for
-\`com.pivryn\`. The official Termux package repository cannot safely be mixed
+`com.pivryn`. The official Termux package repository cannot safely be mixed
 with that prefix.
 
 A dedicated [custom-prefix build script](bootstrap/rebuild-with-prefix.sh)
@@ -81,11 +81,11 @@ and an automatically-triggered (on changes to relevant files in `main`)
 [custom-prefix GitHub Actions workflow](.github/workflows/custom-prefix-bootstrap.yml)
 are included.
 
-\`\`\`bash
+```bash
 # Requires Linux + a working Docker daemon, significant CPU, disk and time.
 bash bootstrap/rebuild-with-prefix.sh --build
 (cd android && ./gradlew --no-daemon :app:lintDebug :app:assembleDebug -PpivrynCustomPrefix=true)
-\`\`\`
+```
 
 The resulting APK is still a *development/test artifact*. A signed release
 requires hardware testing and the maintainer's durable private signing key.
@@ -93,8 +93,17 @@ The custom-prefix bootstrap deliberately disables the official Termux apt
 mirrors until a Pivryn-native package repository exists, so it is not yet
 a full replacement for standalone Termux package management.
 
-A normal debug build remains based on \`com.termux\`; the Gradle release
+A normal debug build remains based on `com.termux`; the Gradle release
 variant now **fails closed** without a verified custom-prefix bootstrap.
+
+### Controlled signed release candidates
+
+The release process is documented in
+[docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md). The
+[`signed-android-release.yml`](.github/workflows/signed-android-release.yml)
+workflow requires a matching custom-prefix bootstrap, test/license sign-offs,
+maintainer-controlled signing secrets and successful signature verification.
+No public APK is released by default.
 
 ### CI
 

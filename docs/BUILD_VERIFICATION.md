@@ -11,7 +11,7 @@
 - TypeScript builds: `pi-termux-tools`, `pi-skill-learner`.
 - Python `py_compile` on optional backend.
 - Shell syntax for bootstrap scripts.
-- `python3 -m unittest discover -s tests -v`: 10 tests passed.
+- `python3 -m unittest discover -s tests -v`: 15 tests passed.
 - `./gradlew :app:assembleDebug`: BUILD SUCCESSFUL.
 - `./gradlew :app:lintDebug`: BUILD SUCCESSFUL, 0 errors.
 - APK contains the complete `bootstrap-aarch64.zip` asset.
@@ -45,12 +45,27 @@
 
 ## Custom-prefix release engineering (source-level only)
 
-- \`patch-termux-properties.py\` validates and rewrites the current upstream
-  \`TERMUX_APP__PACKAGE_NAME\` build property without silently accepting upstream changes.
-- \`verify-custom-prefix.py\` checks package identity, required tools, ZIP path
+- `patch-termux-properties.py` validates and rewrites the current upstream
+  `TERMUX_APP__PACKAGE_NAME` build property without silently accepting upstream changes.
+- `verify-custom-prefix.py` checks package identity, required tools, ZIP path
   safety, and rejects embedded official Termux prefixes.
 - Official bootstrap was rejected by the custom-prefix verifier, as expected.
-- Gradle \`verifyPivrynReleaseBootstrap\` rejected building a release without
+- Gradle `verifyPivrynReleaseBootstrap` rejected building a release without
   an approved custom-prefix archive (negative-test passed).
 - Native source compilation, ABI behavior, npm installation, Android runtime
   and custom-prefix coexistence have **not** been proven.
+
+## Release gate verification
+
+- **15 source tests passed**, including independent package identity, archive
+  verification, shell shebangs, network guards, PTY fallback, release signing
+  requirements and hardware/license approval checks.
+- Normal official-prefix **debug APK + lint build succeeded** with the custom
+  package changes still disabled.
+- Attempting `assembleRelease` without a custom-prefix bootstrap **failed
+  closed** with the expected Gradle error.
+- Attempting `assembleDebug -PpivrynCustomPrefix=true` without the custom
+  archive **failed closed**, preventing falsely installable standalone APKs.
+- The manually authorized signed-release workflow has not been run:
+  source-built native artifacts, physical-device sign-off and signing secrets
+  are not yet available.

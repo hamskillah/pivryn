@@ -24,8 +24,8 @@ android {
         // legacy semantics that allow exec from app-data, which Pi (and the
         // entire Termux runtime) relies on.
         targetSdk = 28
-        versionCode = 7
-        versionName = "0.1.0-dev"
+        versionCode = providers.gradleProperty("pivrynVersionCode").orNull?.toIntOrNull() ?: 7
+        versionName = providers.gradleProperty("pivrynVersionName").orNull ?: "0.1.0-dev"
 
         ndk { abiFilters += listOf("arm64-v8a") }
     }
@@ -37,10 +37,29 @@ android {
         disable += "ExpiredTargetSdkVersion"
     }
 
-    // Pivryn currently mirrors the upstream Termux's install layout — the bootstrap zip extracts
-    // into /data/data/com.zosma.pocketpi/files/usr at first launch.
+    // Release keys are supplied by the maintainer's GitHub secrets. Never
+    // generate a new key on a build runner or commit a keystore.
+    val signingPath = System.getenv("PIVRYN_KEYSTORE_FILE")
+    val signingPass = System.getenv("PIVRYN_STORE_PASSWORD")
+    val signingAlias = System.getenv("PIVRYN_KEY_ALIAS")
+    val signingKeyPass = System.getenv("PIVRYN_KEY_PASSWORD")
+    val signingConfigured = listOf(signingPath, signingPass, signingAlias, signingKeyPass)
+        .all { !it.isNullOrBlank() }
+    signingConfigs {
+        if (signingConfigured) {
+            create("pivrynRelease") {
+                storeFile = file(signingPath!!)
+                storePassword = signingPass
+                keyAlias = signingAlias
+                keyPassword = signingKeyPass
+            }
+        }
+    }
     buildTypes {
         release {
+            if (signingConfigured) {
+                signingConfig = signingConfigs.getByName("pivrynRelease")
+            }
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -90,10 +109,23 @@ val verifyPivrynReleaseBootstrap = tasks.register("verifyPivrynReleaseBootstrap"
         }
     }
 }
+val verifyPivrynSigning = tasks.register("verifyPivrynSigning") {
+    doLast {
+        val required = listOf("PIVRYN_KEYSTORE_FILE", "PIVRYN_STORE_PASSWORD",
+            "PIVRYN_KEY_ALIAS", "PIVRYN_KEY_PASSWORD")
+        if (required.any { System.getenv(it).isNullOrBlank() } ||
+            !file(System.getenv("PIVRYN_KEYSTORE_FILE") ?: "").isFile
+        ) {
+            throw GradleException("Pivryn release blocked: durable maintainer signing credentials missing.")
+        }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(verifyPivrynReleaseBootstrap, verifyPivrynSigning)
+}
 tasks.matching {
-    it.name == "preReleaseBuild" ||
-        (it.name == "preDebugBuild" &&
-            providers.gradleProperty("pivrynCustomPrefix").orNull == "true")
+    it.name == "preDebugBuild" &&
+        providers.gradleProperty("pivrynCustomPrefix").orNull == "true"
 }.configureEach {
     dependsOn(verifyPivrynReleaseBootstrap)
 }

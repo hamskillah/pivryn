@@ -17,8 +17,14 @@
 
 - Removed obsolete upstream emulator experiments from `scripts/` (not used by build or runtime).
 
-- Added initial source-build path for independent \`com.pivryn\` Termux
+- Added initial source-build path for independent `com.pivryn` Termux
   bootstrap, strong release build guard, and native package isolation.
 - Fixed generated executable-script shebangs for custom Android package ID.
+
+- Added source-build and checksum-gated artifact transfer, owner-held signing
+  credentials and GitHub release-candidate workflow with explicit device and
+  license sign-offs.
+- Added build-time checks rejecting standalone debug/release APKs without
+  the source-built `com.pivryn` bootstrap.
 
 **Development source snapshot, not a public stable release.**

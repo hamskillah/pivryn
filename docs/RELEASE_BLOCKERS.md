@@ -16,8 +16,8 @@ This file describes *verified source observations* and *tests not yet performed*
 | Source/runtime lifecycle | Upstream PiBridge termination strategy sweeps UID processes | Replace with testable process ownership and bounded shutdown |
 | Security review | Dashboard wildcard-binding issue mitigated with verified localhost patch; full adversarial testing remains undone | Review auth, WS handlers, filesystem actions, prompt injection and sensitive logs |
 | Licensing | Third-party notice review not complete for redistribution | License audit and source distribution obligations met |
-| Production signing | No maintainer-owned release signing key configured | Stable private signing key with offline backup, reproducible signing and signature verification |
-| Package repository | Official Termux apt mirrors cannot be used with \`com.pivryn\` | Provide isolated signed repository or declare fixed bundled native toolset and disable native updates |
+| Production signing | Release signing workflow is implemented but no maintainer-owned key is configured | Stable private signing key, offline backup, GitHub secrets and actual signed APK verification |
+| Package repository | Custom-prefix builder disables official Termux apt mirrors | Build isolated signed repository, or document bundled-only native packages and limited updates |
 
 ## What this snapshot changes
 

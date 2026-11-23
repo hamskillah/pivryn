@@ -131,6 +131,20 @@ class IntegrationIntegrityTests(unittest.TestCase):
         for script in ("XDG_OPEN", "POCKET_PI_API", "WRAPPER"):
             self.assertIn('sed -i "1c\\\\#!$PREFIX/bin/bash" "$' + script + '"', install)
 
+    def test_release_uses_durable_signing_and_hardware_approval(self):
+        gradle = (ROOT / "android/app/build.gradle.kts").read_text()
+        workflow = (
+            ROOT / ".github/workflows/signed-android-release.yml"
+        ).read_text()
+        self.assertIn("verifyPivrynSigning", gradle)
+        self.assertIn("PIVRYN_KEYSTORE_FILE", gradle)
+        self.assertIn("durable maintainer signing credentials missing", gradle)
+        self.assertIn("device_test_passed", workflow)
+        self.assertIn("license_audit_passed", workflow)
+        self.assertIn("PIVRYN_RELEASE_KEYSTORE_BASE64", workflow)
+        self.assertIn("--prerelease", workflow)
+        self.assertNotIn("--force", workflow)
+
     def test_debug_apk_not_uploaded_as_a_public_release(self):
         workflow = (ROOT / ".github/workflows/build-apk.yml").read_text()
         self.assertNotIn("softprops/action-gh-release", workflow)
