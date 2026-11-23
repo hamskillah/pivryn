@@ -35,6 +35,13 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/hostedtoolcache/CodeQL || true
           df -h .
 
+      - name: Verify pinned Termux source configuration before expensive build
+        run: |
+          curl -fsSL --retry 3 \
+            https://raw.githubusercontent.com/termux/termux-packages/90bab96741a878831e9e1ed328c7351083152be7/scripts/properties.sh \
+            -o /tmp/pivryn-termux-properties.sh
+          python3 bootstrap/patch-termux-properties.py --check /tmp/pivryn-termux-properties.sh
+
       - name: Build isolated Termux source bootstrap
         run: bash bootstrap/rebuild-with-prefix.sh --build
 

@@ -50,7 +50,18 @@ jobs:
             exit 1
           }
           [[ "$PIVRYN_VERSION_CODE" =~ ^[0-9]+$ ]] && [ "$PIVRYN_VERSION_CODE" -ge 1 ]
-          RUN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PIVRYN_RUN_ID" --jq '.head_sha')"
+          RUN_JSON="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PIVRYN_RUN_ID")"
+          RUN_SHA="$(jq -r '.head_sha' <<<"$RUN_JSON")"
+          RUN_CONCLUSION="$(jq -r '.conclusion' <<<"$RUN_JSON")"
+          RUN_WORKFLOW="$(jq -r '.path' <<<"$RUN_JSON")"
+          test "$RUN_CONCLUSION" = "success" || {
+            echo "Custom-prefix bootstrap must have a successful conclusion."
+            exit 1
+          }
+          test "$RUN_WORKFLOW" = ".github/workflows/custom-prefix-bootstrap.yml" || {
+            echo "Unexpected artifact-producing workflow."
+            exit 1
+          }
           test "$RUN_SHA" = "$GITHUB_SHA" || {
             echo "Mismatched source build: bootstrap workflow must run on the exact release commit."
             exit 1
