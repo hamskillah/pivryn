@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!--
+      AccessibilityService permissions for the vendored orb-eye UI-automation
+      surface. The user must still toggle the service ON in Settings → Accessibility
+      → Pocket Pi; Android forbids any runtime-dialog shortcut for this class
+      of permission. BIND_NOTIFICATION_LISTENER_SERVICE lets the service
+      receive TYPE_NOTIFICATION_STATE_CHANGED events.
+    -->
+    <!-- BIND_NOTIFICATION_LISTENER_SERVICE is a privileged binding permission,
+         not a runtime permission that this app may request. -->
+
+    <application
+        android:name=".PocketPiApp"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Theme.PocketPi"
+        android:supportsRtl="true"
+        android:allowBackup="false"
+        android:requestLegacyExternalStorage="false"
+        android:extractNativeLibs="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:targetApi="34"
+        tools:replace="android:extractNativeLibs">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.PocketPi">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              Deep link: pi://agent/<path>?<query>. The agent doesn't need a
+              verified App Link (https + assetlinks.json) since pi:// is a
+              custom scheme owned by Pocket Pi. MainActivity.onNewIntent
+              routes incoming Intents into the inbox file the agent polls.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pi" android:host="agent" />
+            </intent-filter>
+
+            <!--
+              Share target: "Share to Pocket Pi" from any app. Text + image
+              MIME types cover the common cases (selected text, screenshots,
+              photos). The payload (text or content URI) lands in the inbox.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+
+        <service
+            android:name=".service.PocketPiService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!--
+          Transient foreground services for hardware capture. Each runs only
+          while a capture is in flight, so the system privacy dot (mic/camera)
+          and notification only show when the agent is actively using the
+          hardware. Service classes drive runtime permissions for their
+          respective sensors via PocketPiApiServer dispatching to them.
+        -->
+        <service
+            android:name=".service.LocationFgService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <service
+            android:name=".service.CameraFgService"
+            android:exported="false"
+            android:foregroundServiceType="camera" />
+        <service
+            android:name=".service.MicFgService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!--
+          Vendored from KarryViber/orb-eye (MIT). Provides UI tree access,
+          gesture dispatch, screenshot, notification capture, and clipboard.
+          Bound by the OS once the user enables the toggle in Settings →
+          Accessibility → Pocket Pi. The service singleton is reachable from
+          our existing PocketPiApiServer via getInstance() so its handlers
+          serve our 127.0.0.1:9998 routes under /ui/*. android:exported=true
+          is REQUIRED by Android's AccessibilityServiceInfo dispatcher; the
+          permission attribute pinning to BIND_ACCESSIBILITY_SERVICE ensures
+          only the system can bind it, not other apps.
+        -->
+        <service
+            android:name=".orbeye.PocketPiAccessibilityService"
+            android:exported="true"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

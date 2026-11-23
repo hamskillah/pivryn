@@ -1,0 +1,8 @@
+nodejs-lts
+npm
+python
+git
+ripgrep
+termux-api
+openssl
+curl
