@@ -54,6 +54,31 @@ class IntegrationIntegrityTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.verify(archive, "com.pivryn")
 
+    def test_termux_force_cleanup_guard_fails_closed(self):
+        import importlib.util
+        import subprocess
+        spec = importlib.util.spec_from_file_location(
+            "pivryn_termux_cleanup_guard",
+            ROOT / "bootstrap/harden-termux-bootstrap.py",
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        old = module.OLD
+        patched = module.patch(old)
+        self.assertEqual(module.patch(patched), patched)
+        self.assertIn("unsafe Termux cleanup directory", patched)
+        # Run only the guarded branch with an empty variable; it must exit
+        # before reaching rm, and must never expand its glob against /.
+        result = subprocess.run(
+            ["bash", "-c", "unset TERMUX_BUILT_PACKAGES_DIRECTORY_FOR_ARCH; " + patched],
+            capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(result.returncode, 95)
+        self.assertIn("unsafe Termux cleanup directory", result.stderr)
+        builder = (ROOT / "bootstrap/rebuild-with-prefix.sh").read_text()
+        self.assertIn("harden-termux-bootstrap.py", builder)
+        self.assertNotIn("./scripts/build-bootstraps.sh -f", builder)
+
     def test_custom_prefix_blocked_from_official_apt_sources(self):
         builder = (ROOT / "bootstrap/build-bootstrap.sh").read_text()
         installer = (ROOT / "bootstrap/postinstall.sh").read_text()

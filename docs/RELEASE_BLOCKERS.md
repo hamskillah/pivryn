@@ -19,6 +19,14 @@ This file describes *verified source observations* and *tests not yet performed*
 | Production signing | Release signing workflow is implemented but no maintainer-owned key is configured | Stable private signing key, offline backup, GitHub secrets and actual signed APK verification |
 | Package repository | Custom-prefix builder disables official Termux apt mirrors | Build isolated signed repository, or document bundled-only native packages and limited updates |
 
+## GitHub Actions custom-prefix source build
+
+The first GitHub Actions attempt (run 45200025586) failed during upstream
+Termux bootstrap generation because `-f` hit an unset cleanup path,
+expanding to `/*`. The wrapper now avoids force mode on fresh runners
+and hardens the pinned upstream source to reject an empty or root cleanup
+path. The next source build must still complete before the release gate is met.
+
 ## What this snapshot changes
 
 - Visible app name and onboarding copy changed to **Pivryn** without prematurely changing Termux paths.

@@ -32,10 +32,15 @@ git -C "$TERMUX_TREE" fetch --no-tags origin "$UPSTREAM_REVISION"
 git -C "$TERMUX_TREE" checkout -q --detach "$UPSTREAM_REVISION"
 python3 "$HERE/patch-termux-properties.py" --apply \
   "$TERMUX_TREE/scripts/properties.sh" "$PACKAGE_ID"
+# Upstream's -f cleanup has a dangerous unset variable in the pinned script.
+# Fresh CI runners have no prior built packages and do not need force mode.
+# Guard the cleanup branch too, to fail closed if it is used in the future.
+python3 "$HERE/harden-termux-bootstrap.py" \
+  "$TERMUX_TREE/scripts/build-bootstraps.sh"
 
 (
   cd "$TERMUX_TREE"
-  ./scripts/run-docker.sh ./scripts/build-bootstraps.sh -f \
+  ./scripts/run-docker.sh ./scripts/build-bootstraps.sh \
     --architectures "$ARCH" --add "$PACKAGE_LIST"
 )
 BASE_ZIP="$TERMUX_TREE/bootstrap-$ARCH.zip"
