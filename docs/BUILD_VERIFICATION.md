@@ -42,3 +42,15 @@
 - `./gradlew --no-daemon :app:lintDebug :app:assembleDebug`: BUILD SUCCESSFUL; 48 tasks, zero lint errors.
 - Debug APK SHA-256: `cad5be9fdde0d4f97e1f0c05bcbd9b9ebdf998c1c09aeb532b78789621571afe`.
 - Package ID is still `com.termux`; not safe to install next to official Termux.
+
+## Custom-prefix release engineering (source-level only)
+
+- \`patch-termux-properties.py\` validates and rewrites the current upstream
+  \`TERMUX_APP__PACKAGE_NAME\` build property without silently accepting upstream changes.
+- \`verify-custom-prefix.py\` checks package identity, required tools, ZIP path
+  safety, and rejects embedded official Termux prefixes.
+- Official bootstrap was rejected by the custom-prefix verifier, as expected.
+- Gradle \`verifyPivrynReleaseBootstrap\` rejected building a release without
+  an approved custom-prefix archive (negative-test passed).
+- Native source compilation, ABI behavior, npm installation, Android runtime
+  and custom-prefix coexistence have **not** been proven.

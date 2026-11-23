@@ -1,0 +1,106 @@
+name: custom-prefix-bootstrap
+# This expensive job compiles Termux packages from source for com.pivryn.
+# It never publishes a release or signs an APK. Run explicitly for validation.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pivryn-custom-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  source-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify scripts and source tests
+        run: |
+          python3 -m unittest discover -s tests -v
+          bash -n bootstrap/*.sh bootstrap/patches/*.sh
+          python3 -m py_compile bootstrap/*.py
+
+      - name: Install bootstrap build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl git unzip zip jq xz-utils python3 python3-pip
+
+      - name: Free space for source package build
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/hostedtoolcache/CodeQL || true
+          df -h .
+
+      - name: Build isolated Termux source bootstrap
+        run: bash bootstrap/rebuild-with-prefix.sh --build
+
+      - name: Verify custom archive and provenance marker
+        run: |
+          python3 bootstrap/verify-custom-prefix.py bootstrap/dist/bootstrap-aarch64.zip com.pivryn
+          test "$(sed -n '1p' bootstrap/dist/.pivryn-custom-prefix)" = "com.pivryn"
+          (cd bootstrap/dist && sha256sum bootstrap-aarch64.zip)
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Build bundled Pi extensions
+        run: |
+          (cd extensions/pi-termux-tools && pnpm install --frozen-lockfile && pnpm build)
+          (cd extensions/pi-skill-learner && pnpm install --frozen-lockfile && pnpm build)
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build Python wheel
+        run: |
+          python -m pip install build
+          (cd python/skill_learner_dspy && python -m build --wheel)
+
+      - name: Build isolated Pivryn development APK
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon :app:lintDebug :app:assembleDebug \
+            -PpivrynCustomPrefix=true
+
+      - name: Verify APK package identity
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -n "$AAPT"
+          "$AAPT" dump badging "$APK" | tee /tmp/pivryn-badging.txt
+          grep -q "^package: name='com.pivryn'" /tmp/pivryn-badging.txt
+
+      - name: Upload development-only test APK and prefix marker
+        uses: actions/upload-artifact@v4
+        with:
+          name: pivryn-custom-prefix-UNTESTED-debug
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            bootstrap/dist/.pivryn-custom-prefix
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Record release blockers
+        run: |
+          echo 'Custom prefix compilation is not a hardware or security audit.'
+          echo 'No public release is created by this workflow.'

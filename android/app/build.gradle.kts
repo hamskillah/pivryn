@@ -1,3 +1,4 @@
+import java.security.MessageDigest
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -10,14 +11,11 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        // TEMP for emulator validation. The upstream Termux bootstrap zip
-        // ships compiled binaries (apt, dpkg, busybox helpers) with the path
-        // /data/data/com.termux/files/usr baked in. Until we rebuild a
-        // custom bootstrap pinned to our real prefix, run as com.termux so
-        // that Android's chosen filesDir matches what the binaries expect.
-        // Production build: applicationId = "com.zosma.pocketpi" + a custom
-        // bootstrap built via termux-packages/scripts/build-bootstraps.sh.
-        applicationId = "com.termux"
+        // A separate package is permitted only with a verified *source-built*
+        // Termux bootstrap. Debug compatibility builds retain com.termux.
+        // They must never be published or installed beside official Termux.
+        applicationId = if (providers.gradleProperty("pivrynCustomPrefix").orNull == "true")
+            "com.pivryn" else "com.termux"
         minSdk = 24
         // CRITICAL: Termux itself caps targetSdk at 28. Android 10+ enforces
         // W^X on the app's private data directory when targetSdk >= 29 — any
@@ -67,6 +65,33 @@ android {
         // executables to the device on Android 6+.
         jniLibs.useLegacyPackaging = true
     }
+}
+
+// Production release must refuse the official Termux prefix. A separate app
+// identity without matching native binaries breaks apt, Node and shell tools.
+val verifyPivrynReleaseBootstrap = tasks.register("verifyPivrynReleaseBootstrap") {
+    doLast {
+        if (providers.gradleProperty("pivrynCustomPrefix").orNull != "true") {
+            throw GradleException("Pivryn release blocked: custom-prefix bootstrap not enabled.")
+        }
+        val meta = file("../../bootstrap/dist/.pivryn-custom-prefix")
+        val zip = file("../../bootstrap/dist/bootstrap-aarch64.zip")
+        if (!meta.isFile || !zip.isFile) {
+            throw GradleException("Pivryn release blocked: custom-prefix archive or metadata missing.")
+        }
+        val lines = meta.readLines()
+        if (lines.size != 2 || lines[0] != "com.pivryn") {
+            throw GradleException("Pivryn release blocked: malformed package marker.")
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+        val sha = digest.digest(zip.readBytes()).joinToString("") { "%02x".format(it) }
+        if (sha != lines[1].trim()) {
+            throw GradleException("Pivryn release blocked: custom-prefix bootstrap checksum mismatch.")
+        }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(verifyPivrynReleaseBootstrap)
 }
 
 dependencies {

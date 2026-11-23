@@ -29,7 +29,21 @@ fi
 # silently leave dependencies broken if a mirror's tree is stale. Try once,
 # then if nodejs/npm didn't land — the only apt packages we *strictly* need
 # — pick a different mirror with `termux-change-repo --auto` and retry.
-if command -v pkg >/dev/null 2>&1; then
+# A Pivryn prefix cannot install binary packages from com.termux apt repos.
+# Custom-prefix bootstrap includes all required native tools from source.
+if [ -f "$ETC/custom-prefix" ]; then
+  if [ "$PREFIX" != "/data/data/com.pivryn/files/usr" ]; then
+    echo "ERROR: installed custom prefix and app identity do not match"
+    exit 1
+  fi
+  echo "==> Pivryn native packages bundled; official Termux apt mirrors disabled"
+  for tool in bash node npm python git curl; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "ERR: required custom-prefix binary missing: $tool"
+      exit 1
+    fi
+  done
+elif command -v pkg >/dev/null 2>&1; then
   pkg update -y || true
   # First pass: install everything from packages.txt. Stderr is captured (not
   # discarded) so a mirror flake leaves breadcrumbs in postinstall.log.
@@ -361,6 +375,7 @@ if [ -z "$url" ]; then
 fi
 exec am start -a android.intent.action.VIEW -d "$url" >/dev/null 2>&1
 XDG
+sed -i "1c\\#!$PREFIX/bin/bash" "$XDG_OPEN"
 chmod +x "$XDG_OPEN"
 echo "==> wrote $XDG_OPEN (system-browser shim for OAuth flows)"
 
@@ -401,6 +416,7 @@ else
     -X POST -d '{}' "http://127.0.0.1:9998/$path"
 fi
 API
+sed -i "1c\\#!$PREFIX/bin/bash" "$POCKET_PI_API"
 chmod +x "$POCKET_PI_API"
 echo "==> wrote $POCKET_PI_API (curl shim for the localhost API)"
 
@@ -457,6 +473,7 @@ case " $* " in
 esac
 exit $status
 WRAP
+  sed -i "1c\\#!$PREFIX/bin/bash" "$WRAPPER"
   chmod +x "$WRAPPER"
 fi
 
