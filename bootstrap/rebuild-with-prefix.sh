@@ -1,63 +1,49 @@
 #!/usr/bin/env bash
-# Rebuild the Termux bootstrap zip with a custom prefix path baked into all
-# compiled binaries (apt, dpkg, etc). This is the only way for Pocket Pi to
-# ship as com.zosma.pocketpi without colliding with an existing Termux
-# install on the same device.
-#
-# Cost: long — 4–12+ hours on Apple Silicon (Docker emulates x86_64 via QEMU
-# for the toolchain). Run overnight. Reuses Docker layers across runs.
-#
-# Output: bootstrap/dist/bootstrap-aarch64.zip with prefix
-#         /data/data/com.zosma.pocketpi/files/usr baked in.
+# Build a native custom-prefix Termux bootstrap for Pivryn Android.
+# This does NOT rebrand com.termux binary packages.
 set -euo pipefail
 
-HERE="$(cd "$(dirname "$0")" && pwd)"
-TPK="$HERE/termux-packages"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TERMUX_TREE="$HERE/termux-packages"
+PACKAGE_ID="com.pivryn"
+UPSTREAM_REPO="https://github.com/termux/termux-packages.git"
+UPSTREAM_REVISION="90bab96741a878831e9e1ed328c7351083152be7"
+PACKAGE_LIST="nodejs-lts,npm,python,git,ripgrep,curl,openssl"
+ARCH="aarch64"
 
-[ -d "$TPK" ] || {
-  echo "ERR: $TPK is missing. Clone it first:"
-  echo "  git clone --depth 1 https://github.com/termux/termux-packages $TPK"
-  exit 1
-}
+if [[ "${1:-}" == "--verify-source-config" ]]; then
+  PROPERTIES="${2:?pass upstream properties.sh path}"
+  python3 "$HERE/patch-termux-properties.py" --check "$PROPERTIES"
+  exit 0
+fi
+if [[ "${1:-}" != "--build" ]]; then
+  echo "Usage: $0 --build | --verify-source-config <properties.sh>" >&2
+  exit 2
+fi
+for cmd in git python3 docker sha256sum unzip zip; do
+  command -v "$cmd" >/dev/null || { echo "Missing required tool: $cmd" >&2; exit 3; }
+done
+docker info >/dev/null 2>&1 || { echo "Docker daemon is unavailable" >&2; exit 3; }
 
-PKG="${POCKET_PI_PACKAGE:-com.zosma.pocketpi}"
-BASE="/data/data/$PKG/files"
+if [[ ! -d "$TERMUX_TREE/.git" ]]; then
+  git clone --filter=blob:none "$UPSTREAM_REPO" "$TERMUX_TREE"
+fi
+git -C "$TERMUX_TREE" fetch --no-tags origin "$UPSTREAM_REVISION"
+git -C "$TERMUX_TREE" checkout -q --detach "$UPSTREAM_REVISION"
+python3 "$HERE/patch-termux-properties.py" --apply \
+  "$TERMUX_TREE/scripts/properties.sh" "$PACKAGE_ID"
 
-# Patch termux-packages' properties.sh to use our prefix. This file is the
-# single source of truth for $TERMUX_PREFIX/$TERMUX_HOME during the build.
-PROPS="$TPK/scripts/properties.sh"
-cp "$PROPS" "$PROPS.bak.$(date +%s)"
-python3 - "$PROPS" "$PKG" "$BASE" <<'PY'
-import sys, re
-path, pkg, base = sys.argv[1], sys.argv[2], sys.argv[3]
-s = open(path, encoding="utf-8").read()
+(
+  cd "$TERMUX_TREE"
+  ./scripts/run-docker.sh ./scripts/build-bootstraps.sh -f \
+    --architectures "$ARCH" --add "$PACKAGE_LIST"
+)
+BASE_ZIP="$TERMUX_TREE/bootstrap-$ARCH.zip"
+test -s "$BASE_ZIP"
+unzip -tq "$BASE_ZIP" >/dev/null
+python3 "$HERE/verify-custom-prefix.py" "$BASE_ZIP" "$PACKAGE_ID"
 
-def setv(text, name, val):
-    pat = re.compile(rf'^(\s*)(?:export\s+)?{re.escape(name)}\s*=.*$', re.MULTILINE)
-    if pat.search(text):
-        return pat.sub(f'export {name}="{val}"', text, count=1)
-    return text + f'\nexport {name}="{val}"\n'
-
-s = setv(s, "TERMUX_APP_PACKAGE",   pkg)
-s = setv(s, "TERMUX_BASE_DIR",      base)
-s = setv(s, "TERMUX_PREFIX",        f"{base}/usr")
-s = setv(s, "TERMUX_ANDROID_HOME",  f"{base}/home")
-s = setv(s, "TERMUX__PREFIX",       f"{base}/usr")
-open(path, "w", encoding="utf-8").write(s)
-print("patched", path)
-PY
-
-cd "$TPK"
-echo "==> Running build-bootstraps.sh in Docker for aarch64 (long)"
-./scripts/run-docker.sh ./scripts/build-bootstraps.sh \
-  -a aarch64 \
-  --architectures aarch64 \
-  --add "nodejs python git ripgrep openssl termux-api"
-
-OUT_ZIP="$TPK/bootstrap-aarch64.zip"
-[ -f "$OUT_ZIP" ] || { echo "ERR: build did not produce $OUT_ZIP"; exit 1; }
-
-mkdir -p "$HERE/dist"
-cp "$OUT_ZIP" "$HERE/dist/bootstrap-aarch64.zip"
-echo "==> Custom-prefix bootstrap at $HERE/dist/bootstrap-aarch64.zip"
-echo "    Flip android/app/build.gradle.kts applicationId back to '$PKG' and rebuild the APK."
+PIVRYN_CUSTOM_PREFIX=1 TERMUX_BASE_ZIP="$BASE_ZIP" \
+  "$HERE/build-bootstrap.sh" "$ARCH"
+echo "Custom-prefix bootstrap generated: $HERE/dist/bootstrap-$ARCH.zip"
+echo "Prefix /data/data/$PACKAGE_ID/files/usr; revision $UPSTREAM_REVISION"

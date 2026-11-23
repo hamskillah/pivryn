@@ -10,12 +10,14 @@ This file describes *verified source observations* and *tests not yet performed*
 | Terminal | Native ARM64 adapter included, tested for integrity and fallback; not executed on Android yet | Confirm real PTY keyboard, resize, exit/restart on physical device |
 | Device tests | No physical Android test was available during this source snapshot | Install, bootstrap, permissions, BYOK, UI automation, background process and emergency stop tests |
 | Build | Local Linux Java 17/SDK 34 debug assembly and Android Lint pass, but GitHub CI has not been run | Reproduce in GitHub Actions and verify APK boots on real Android |
-| Bootstrap supply chain | Termux bootstrap and native PTY adapter pinned by SHA-256; apt/npm runtime packages still downloaded dynamically | Lock entire dependency tree and verify licenses |
+| Bootstrap supply chain | Official development bootstrap and native PTY adapter pinned; custom Termux source build path added, but not executed | Verify custom source build and lock the runtime package dependency tree |
 | Dependency pinning | Some first-run npm packages are not version-pinned | Lock critical versions and test tool integrations |
 | Permissions | The app requests camera, microphone and location during initial activity launch | Audit least-privilege prompting and denial behavior |
 | Source/runtime lifecycle | Upstream PiBridge termination strategy sweeps UID processes | Replace with testable process ownership and bounded shutdown |
 | Security review | Dashboard wildcard-binding issue mitigated with verified localhost patch; full adversarial testing remains undone | Review auth, WS handlers, filesystem actions, prompt injection and sensitive logs |
 | Licensing | Third-party notice review not complete for redistribution | License audit and source distribution obligations met |
+| Production signing | Release signing workflow is implemented but no maintainer-owned key is configured | Stable private signing key, offline backup, GitHub secrets and actual signed APK verification |
+| Package repository | Custom-prefix builder disables official Termux apt mirrors | Build isolated signed repository, or document bundled-only native packages and limited updates |
 
 ## What this snapshot changes
 

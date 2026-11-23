@@ -13,7 +13,55 @@ class IntegrationIntegrityTests(unittest.TestCase):
 
     def test_termux_prefix_is_not_pretend_migrated(self):
         gradle = (ROOT / "android/app/build.gradle.kts").read_text()
-        self.assertIn('applicationId = "com.termux"', gradle)
+        self.assertIn('"com.pivryn" else "com.termux"', gradle)
+        self.assertIn('verifyPivrynReleaseBootstrap', gradle)
+        self.assertIn('it.name == "preDebugBuild"', gradle)
+        self.assertIn('custom-prefix bootstrap not enabled', gradle)
+
+    def test_properties_source_patch_is_strict_and_idempotent(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "termux_properties", ROOT / "bootstrap/patch-termux-properties.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        content = 'TERMUX_APP__PACKAGE_NAME="com.termux"\n'
+        changed = module.patch(content, "com.pivryn")
+        self.assertIn('TERMUX_APP__PACKAGE_NAME="com.pivryn"', changed)
+        self.assertEqual(module.patch(changed, "com.pivryn"), changed)
+        with self.assertRaises(ValueError):
+            module.patch("upstream changed this line", "com.pivryn")
+
+    def test_custom_prefix_verifier_rejects_official_binary(self):
+        import importlib.util
+        import tempfile
+        import zipfile
+        spec = importlib.util.spec_from_file_location(
+            "termux_archive_verifier", ROOT / "bootstrap/verify-custom-prefix.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temp:
+            archive = Path(temp) / "termux.zip"
+            with zipfile.ZipFile(archive, "w") as z:
+                for name in ("bin/bash", "bin/node", "bin/npm",
+                             "bin/python", "bin/git"):
+                    z.writestr(name, "binary: /data/data/com.pivryn/files/usr")
+                z.writestr("SYMLINKS.txt", "")
+            self.assertGreater(module.verify(archive, "com.pivryn")["files"], 0)
+            with zipfile.ZipFile(archive, "a") as z:
+                z.writestr("lib/unsafe.so", "/data/data/com.termux/files/usr")
+            with self.assertRaises(ValueError):
+                module.verify(archive, "com.pivryn")
+
+    def test_custom_prefix_blocked_from_official_apt_sources(self):
+        builder = (ROOT / "bootstrap/build-bootstrap.sh").read_text()
+        installer = (ROOT / "bootstrap/postinstall.sh").read_text()
+        self.assertIn('PIVRYN_CUSTOM_PREFIX', builder)
+        self.assertIn('custom-prefix', builder)
+        self.assertIn('custom-prefix', installer)
+        self.assertIn('public native packages disabled', builder)
+        self.assertIn('official Termux apt mirrors disabled', installer)
 
     def test_zip_traversal_guard_present_in_extract_and_refresh(self):
         bootstrap = (
@@ -77,6 +125,25 @@ class IntegrationIntegrityTests(unittest.TestCase):
         self.assertIn('PIVRYN_PTY_SMOKE_OK', adapter)
         self.assertIn('NODE_PTY_PKG/lib/index.js', install)
         self.assertIn('pty-android-install.sh', install)
+
+    def test_generated_executable_scripts_use_runtime_prefix(self):
+        install = (ROOT / "bootstrap/postinstall.sh").read_text()
+        for script in ("XDG_OPEN", "POCKET_PI_API", "WRAPPER"):
+            self.assertIn('sed -i "1c\\\\#!$PREFIX/bin/bash" "$' + script + '"', install)
+
+    def test_release_uses_durable_signing_and_hardware_approval(self):
+        gradle = (ROOT / "android/app/build.gradle.kts").read_text()
+        workflow = (
+            ROOT / ".github/workflows/signed-android-release.yml"
+        ).read_text()
+        self.assertIn("verifyPivrynSigning", gradle)
+        self.assertIn("PIVRYN_KEYSTORE_FILE", gradle)
+        self.assertIn("durable maintainer signing credentials missing", gradle)
+        self.assertIn("device_test_passed", workflow)
+        self.assertIn("license_audit_passed", workflow)
+        self.assertIn("PIVRYN_RELEASE_KEYSTORE_BASE64", workflow)
+        self.assertIn("--prerelease", workflow)
+        self.assertNotIn("--force", workflow)
 
     def test_debug_apk_not_uploaded_as_a_public_release(self):
         workflow = (ROOT / ".github/workflows/build-apk.yml").read_text()
