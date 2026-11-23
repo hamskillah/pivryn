@@ -35,8 +35,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Verify preinstalled Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_HOME:?GitHub runner must provide ANDROID_HOME}"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "::error::Android SDK manager missing on GitHub runner"
+            exit 1
+          fi
+          "$SDKMANAGER" --version
+          "$SDKMANAGER" --install "platforms;android-34" "build-tools;34.0.0"
+
 
       - name: Set up Node 24
         uses: actions/setup-node@v4
