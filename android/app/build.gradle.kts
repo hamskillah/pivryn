@@ -90,7 +90,11 @@ val verifyPivrynReleaseBootstrap = tasks.register("verifyPivrynReleaseBootstrap"
         }
     }
 }
-tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+tasks.matching {
+    it.name == "preReleaseBuild" ||
+        (it.name == "preDebugBuild" &&
+            providers.gradleProperty("pivrynCustomPrefix").orNull == "true")
+}.configureEach {
     dependsOn(verifyPivrynReleaseBootstrap)
 }
 

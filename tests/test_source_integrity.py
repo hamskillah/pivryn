@@ -15,6 +15,7 @@ class IntegrationIntegrityTests(unittest.TestCase):
         gradle = (ROOT / "android/app/build.gradle.kts").read_text()
         self.assertIn('"com.pivryn" else "com.termux"', gradle)
         self.assertIn('verifyPivrynReleaseBootstrap', gradle)
+        self.assertIn('it.name == "preDebugBuild"', gradle)
         self.assertIn('custom-prefix bootstrap not enabled', gradle)
 
     def test_properties_source_patch_is_strict_and_idempotent(self):
