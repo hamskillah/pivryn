@@ -8,7 +8,7 @@ TERMUX_TREE="$HERE/termux-packages"
 PACKAGE_ID="com.pivryn"
 UPSTREAM_REPO="https://github.com/termux/termux-packages.git"
 UPSTREAM_REVISION="90bab96741a878831e9e1ed328c7351083152be7"
-PACKAGE_LIST="nodejs-lts,npm,python,git,ripgrep,curl,openssl"
+PACKAGE_LIST="nodejs-lts,npm,python,git,ripgrep,libcurl,openssl"
 ARCH="aarch64"
 
 if [[ "${1:-}" == "--verify-source-config" ]]; then
@@ -36,7 +36,7 @@ python3 "$HERE/patch-termux-properties.py" --apply \
 # Fresh CI runners have no prior built packages and do not need force mode.
 # Guard the cleanup branch too, to fail closed if it is used in the future.
 python3 "$HERE/harden-termux-bootstrap.py" \
-  "$TERMUX_TREE/scripts/build-bootstraps.sh"
+  "$TERMUX_TREE/scripts/build-bootstraps.sh" "$PACKAGE_LIST"
 
 (
   cd "$TERMUX_TREE"

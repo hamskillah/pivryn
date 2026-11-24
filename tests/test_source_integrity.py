@@ -63,7 +63,7 @@ class IntegrationIntegrityTests(unittest.TestCase):
         )
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        old = module.OLD
+        old = module.OLD + "\n" + module.OLD_BZIP2
         patched = module.patch(old)
         self.assertEqual(module.patch(patched), patched)
         self.assertIn("unsafe Termux cleanup directory", patched)
@@ -78,6 +78,35 @@ class IntegrationIntegrityTests(unittest.TestCase):
         builder = (ROOT / "bootstrap/rebuild-with-prefix.sh").read_text()
         self.assertIn("harden-termux-bootstrap.py", builder)
         self.assertNotIn("./scripts/build-bootstraps.sh -f", builder)
+
+    def test_pinned_termux_bootstrap_recipe_mapping_and_preflight(self):
+        import importlib.util
+        import tempfile
+        spec = importlib.util.spec_from_file_location(
+            "termux_bootstrap_hardening", ROOT / "bootstrap/harden-termux-bootstrap.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        source = module.OLD + '\n' + module.OLD_BZIP2 + '\n' + 'PACKAGES+=("apt")\n'
+        mapped = module.patch(source)
+        self.assertEqual(module.patch(mapped), mapped)
+        self.assertIn(module.NEW_BZIP2, mapped)
+        self.assertNotIn(module.OLD_BZIP2, mapped)
+        with self.assertRaises(ValueError):
+            module.patch(source.replace(module.OLD_BZIP2, 'PACKAGES+=("upstream-renamed")'))
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = Path(tmp)
+            for name in ("libbz2", "apt", "nodejs-lts", "libcurl"):
+                recipe = tree / "packages" / name / "build.sh"
+                recipe.parent.mkdir(parents=True)
+                recipe.write_text('TERMUX_PKG_VERSION=1\n')
+            checked = module.validate_sources(mapped, tree, "nodejs-lts,libcurl")
+            self.assertEqual(set(checked), {"libbz2", "apt", "nodejs-lts", "libcurl"})
+            with self.assertRaisesRegex(ValueError, "no source recipe"):
+                module.validate_sources(mapped, tree, "nodejs-lts,curl")
+        builder = (ROOT / "bootstrap/rebuild-with-prefix.sh").read_text()
+        self.assertIn('"$TERMUX_TREE/scripts/build-bootstraps.sh" "$PACKAGE_LIST"', builder)
+        self.assertIn('ripgrep,libcurl,openssl', builder)
 
     def test_custom_prefix_blocked_from_official_apt_sources(self):
         builder = (ROOT / "bootstrap/build-bootstrap.sh").read_text()

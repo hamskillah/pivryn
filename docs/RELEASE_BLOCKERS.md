@@ -27,6 +27,15 @@ expanding to `/*`. The wrapper now avoids force mode on fresh runners
 and hardens the pinned upstream source to reject an empty or root cleanup
 path. The next source build must still complete before the release gate is met.
 
+The second attempt (run 45202825413) built a custom-prefix `apt` but failed
+because upstream `build-bootstraps.sh` uses an obsolete `bzip2` recipe name.
+The pinned tree instead defines `libbz2`, which builds the `bzip2` CLI
+subpackage. The requested `curl` CLI similarly originates from the
+`libcurl` source recipe. Both source package names are corrected, and a
+fail-closed preflight now verifies **every** requested source recipe exists.
+A complete custom-prefix bootstrap and Android APK remain unverified until CI
+passes the corrected workflow.
+
 ## What this snapshot changes
 
 - Visible app name and onboarding copy changed to **Pivryn** without prematurely changing Termux paths.
